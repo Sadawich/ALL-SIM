@@ -7,7 +7,7 @@
 <meta name="description" content="Test LQR, PID and Pybricks gyro turns, build your robot, plan BIOGLOW runs and run Pybricks Python in the browser.">
 <meta name="theme-color" content="#0d1117">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%23ffb020'/><text x='16' y='21' font-size='13' text-anchor='middle' font-family='monospace' font-weight='700' fill='%23111'>FS</text></svg>">
-<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/style.css?v=2026-11-20.4">
 <script type="importmap">{ "imports": { "three": "./vendor/three.module.min.js" } }</script>
 </head>
 <body>
@@ -29,6 +29,21 @@
 </header>
 <main id="view"></main>
 <footer><span id="footName">FLL SIM</span> · built for SPIKE Prime + Pybricks · not affiliated with FIRST® or LEGO®</footer>
-<script type="module" src="js/app.js"></script>
+<script>
+// Make sure everyone gets the newest files after an update (GitHub Pages caches them for 10 min)
+(async () => {
+  const V = '2026-11-20.4';
+  const files = ["js/ai.js", "js/app.js", "js/config.js", "js/fieldview.js", "js/omni.js", "js/pages/account.js", "js/pages/admin.js", "js/pages/builder.js", "js/pages/code.js", "js/pages/comps.js", "js/pages/field.js", "js/pages/home.js", "js/pages/rules.js", "js/pages/sim.js", "js/pages/soccer.js", "js/physics.js", "js/py-worker.js", "js/pybricks-export.js", "js/robot.js", "js/store.js", "js/pybricks-mock.py", "css/style.css"];
+  try {
+    if (localStorage.getItem('fllsim.v') !== V) {
+      await Promise.all(files.map(f => fetch(f, { cache: 'reload' }).catch(() => {})));
+      localStorage.setItem('fllsim.v', V);
+      if (!sessionStorage.getItem('fllsim.reloaded')) { sessionStorage.setItem('fllsim.reloaded', '1'); location.reload(); return; }
+    }
+  } catch (e) { }
+  sessionStorage.removeItem('fllsim.reloaded');
+  const s = document.createElement('script'); s.type = 'module'; s.src = 'js/app.js'; document.body.appendChild(s);
+})();
+</script>
 </body>
 </html>
