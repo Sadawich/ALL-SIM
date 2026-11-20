@@ -40,7 +40,7 @@ export async function render(el, ctx) {
 
   el.innerHTML = `
   <div class="row" style="margin-bottom:14px"><h2 style="margin:0">${esc(field.name)} · 1:1</h2><span class="spacer"></span>
-    <select class="in" id="progSel" style="width:auto"></select><button class="btn" id="newProg">+ New run</button><button class="btn primary" id="save">Save run</button></div>
+    ${ctx.session.kind === 'admin' ? '<a class="btn" href="#/comps">＋ Add / edit fields</a><a class="btn" href="#/rules">📄 Rules</a>' : ''}<select class="in" id="progSel" style="width:auto"></select><button class="btn" id="newProg">+ New run</button><button class="btn primary" id="save">Save run</button></div>
   <div class="card" style="padding:12px">
     <div class="toolbar">
       <button class="btn sm" data-mode="add">＋ Add point</button><button class="btn sm" data-mode="move">✥ Move</button><button class="btn sm" data-mode="start">⌖ Set start</button>
