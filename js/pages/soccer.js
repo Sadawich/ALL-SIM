@@ -274,11 +274,11 @@ def joystick_to_degree(x, y):
   function matchPane() {
     $('#pane').innerHTML = `<div class="grid" style="align-content:start">
       <div class="card" style="padding:12px"><div class="row toolbar" style="margin:0">
-        <span class="mono" id="score" style="font-size:20px;font-weight:700">0 : 0</span><span class="mono muted" id="clock">0:00</span><span class="spacer"></span>
+        <span class="mono" id="score" style="font-size:20px;font-weight:700">0 : 0</span><span class="mono muted" id="clock">1st half 2:30</span><span class="spacer"></span>
         <select class="in" id="ctrlSel" style="width:auto;padding:5px 8px"><option>LQR</option><option>PID</option></select>
         <select class="in" id="lvl" style="width:auto;padding:5px 8px"><option value="off">No opponents</option><option value="easy">Easy bots</option><option value="medium">Medium bots</option><option value="hard">Hard bots</option></select>
         <label class="small row"><input type="checkbox" id="lock" ${S.autoLock ? 'checked' : ''}> Goal lock when ball held</label>
-        <button class="btn sm" id="reset">Reset</button><button class="btn sm" id="setBtn">Field…</button></div>
+        <button class="btn sm primary" id="startBtn">▶ Start</button><button class="btn sm" id="reset">New match</button><button class="btn sm" id="setBtn">Field…</button></div>
         <div id="setBox" class="hide grid" style="grid-template-columns:repeat(6,1fr);gap:6px;margin-top:8px">
           ${[['L', 'Length mm'], ['W', 'Width mm'], ['goal', 'Goal mm'], ['retW', 'Retriever W'], ['retD', 'Retriever D'], ['reach', 'Dribbler reach']].map(([k, l]) => `<div><label class="f">${l}</label><input class="in mono" data-s="${k}" value="${S[k]}"></div>`).join('')}</div></div>
       <div class="grid" style="grid-template-columns:minmax(0,1fr) 220px;gap:12px" id="mgrid">
@@ -287,17 +287,17 @@ def joystick_to_degree(x, y):
           <canvas id="mstick" style="width:100%;display:block"></canvas>
           <button class="btn primary" id="kick" style="justify-content:center;height:56px;font-size:18px">⚽ KICK</button>
           <div class="kv small" id="tele"></div>
-          <p class="small muted" style="margin:0">Keys: WASD/arrows to move, Space to kick. A gamepad works too (left stick, A to kick). Without the ball the robot faces forward; with it, it locks on the goal.</p>
+          <p class="small muted" style="margin:0">Keys: WASD/arrows to move, Space to kick. A gamepad works too (left stick, A to kick). Without the ball the robot faces forward; with it, it locks on the goal. 2 halves × 2:30. A ball that doesn't move for 5 s goes back to the centre.</p>
         </div>
       </div></div>`;
     const narrow = () => { $('#mgrid').style.gridTemplateColumns = innerWidth < 760 ? '1fr' : 'minmax(0,1fr) 220px'; };
     narrow(); on(window, 'resize', narrow);
     $('#ctrlSel').value = S.ctrl; $('#lvl').value = S.level;
     $('#ctrlSel').onchange = () => { S.ctrl = $('#ctrlSel').value; save(); ctrl = mkCtrl(); };
-    $('#lvl').onchange = () => { S.level = $('#lvl').value; save(); resetMatch(); };
+    $('#lvl').onchange = () => { S.level = $('#lvl').value; save(); kickoff(); };
     $('#lock').onchange = e => { S.autoLock = e.target.checked; save(); };
     $('#setBtn').onclick = () => $('#setBox').classList.toggle('hide');
-    $$('[data-s]').forEach(i => i.onchange = () => { S[i.dataset.s] = Math.max(1, +i.value); save(); resetMatch(); });
+    $$('[data-s]').forEach(i => i.onchange = () => { S[i.dataset.s] = Math.max(1, +i.value); save(); size(); kickoff(); });
 
     const st = stickState(), drawStick = makeStick($('#mstick'), st);
     const keys = new Set(); let kickReq = false;
@@ -307,16 +307,30 @@ def joystick_to_degree(x, y):
     const P = O.omniPlant(o), BR = 37, RB = Math.max(80, o.radius + 30);
     const mkCtrl = () => S.ctrl === 'LQR' ? O.holdLQR(O.lqrForOmni(o), P) : O.holdPID(o.pid);
     let ctrl = mkCtrl();
-    let me, ball, bots, score, held, tGame, R, lastGp = false, queue, bias;
-    function resetMatch(keepScore) {
+    const HALF = 150; // seconds per half (2:30)
+    let me, ball, bots, score = [0, 0], held, tGame = 0, R = rng(1), lastGp = false, queue, bias;
+    let half = 1, tLeft = HALF, phase = 'ready', still = 0, anchor = null; // phase: ready | play | pause | half | full
+    // kickoff positions; score and clock are kept
+    function kickoff() {
       R = rng(Date.now() % 1e6);
-      me = { x: S.W / 2, y: S.L * 0.2, h: 0, w: 0, u: 0 }; queue = [0]; bias = 0;
-      ball = { x: S.W * (0.25 + R() * 0.5), y: S.L * (0.35 + R() * 0.3), vx: 0, vy: 0 };
+      me = { x: S.W / 2, y: S.L * 0.2, h: 0, w: 0, u: 0, kx: 0, ky: 0 }; queue = [0]; bias = 0;
+      ball = { x: S.W / 2, y: S.L / 2, vx: 0, vy: 0 };
       const n = S.level === 'off' ? 0 : 2;
-      bots = Array.from({ length: n }, (_, i) => ({ x: S.W * (0.3 + 0.4 * i), y: S.L * 0.8, a: 180, v: 0 }));
-      if (!keepScore) { score = [0, 0]; tGame = 0; }
-      held = false; ctrl = mkCtrl();
+      bots = Array.from({ length: n }, (_, i) => ({ x: S.W * (0.3 + 0.4 * i), y: S.L * 0.8, a: 180, kx: 0, ky: 0, back: 0, spin: 1 }));
+      held = false; ctrl = mkCtrl(); still = 0; anchor = { x: ball.x, y: ball.y };
     }
+    function resetMatch() { score = [0, 0]; half = 1; tLeft = HALF; tGame = 0; phase = 'ready'; kickoff(); startUI(); }
+    function startUI() {
+      const b = $('#startBtn');
+      b.textContent = { ready: '▶ Start', play: '⏸ Pause', pause: '▶ Resume', half: '▶ Start 2nd half', full: '↻ New match' }[phase];
+    }
+    $('#startBtn').onclick = () => {
+      if (phase === 'ready' || phase === 'pause') phase = 'play';
+      else if (phase === 'play') phase = 'pause';
+      else if (phase === 'half') { half = 2; tLeft = HALF; kickoff(); phase = 'play'; }
+      else if (phase === 'full') { resetMatch(); return; }
+      startUI();
+    };
     resetMatch();
     $('#reset').onclick = () => resetMatch();
 
@@ -331,7 +345,13 @@ def joystick_to_degree(x, y):
 
     let last = performance.now(), acc = 0;
     function physics(dt) {
-      tGame += dt;
+      if (phase !== 'play') return;
+      tGame += dt; tLeft -= dt;
+      if (tLeft <= 0) {
+        tLeft = 0; phase = half === 1 ? 'half' : 'full'; startUI();
+        toast(half === 1 ? `Half time ${score[0]} : ${score[1]}` : `Full time ${score[0]} : ${score[1]}`, 4000);
+        return;
+      }
       readInputs(st, keys);
       const gp = navigator.getGamepads ? [...navigator.getGamepads()].find(Boolean) : null;
       const a = !!gp?.buttons?.[0]?.pressed; if (a && !lastGp) kickReq = true; lastGp = a;
@@ -347,7 +367,8 @@ def joystick_to_degree(x, y):
       me.w += (k.rot * P.maxRate - me.w) * Math.min(1, dt / P.tau);
       me.h = O.wrap(me.h + me.w * dt);
       const fx = Math.sin(rad(me.h)) * k.vx + Math.cos(rad(me.h)) * k.vy, fy = Math.cos(rad(me.h)) * k.vx - Math.sin(rad(me.h)) * k.vy;
-      me.x += fx * P.wheelSpeed * dt; me.y += fy * P.wheelSpeed * dt;
+      me.x += (fx * P.wheelSpeed + me.kx) * dt; me.y += (fy * P.wheelSpeed + me.ky) * dt;
+      const decay = Math.exp(-7 * dt); me.kx *= decay; me.ky *= decay;
       me.x = Math.max(RB, Math.min(S.W - RB, me.x)); me.y = Math.max(RB, Math.min(S.L - RB, me.y));
       // opponents (2-wheel drive): get behind the ball, push it toward our goal (y = 0)
       const L = lvl[S.level];
@@ -357,10 +378,16 @@ def joystick_to_degree(x, y):
         const behind = Math.hypot(b.x - tx, b.y - ty) < 120 || ((b.y > ball.y) && Math.abs(b.x - ball.x) < 120);
         if (behind) { tx = ball.x + dx / dl * 200; ty = ball.y + dy / dl * 200; }
         if (L.react < 1) { tx += Math.sin(tGame * 1.7 + b.x) * (1 - L.react) * 250; }
-        const want = Math.atan2(tx - b.x, ty - b.y) * 180 / Math.PI, err = O.wrap(want - b.a);
-        b.a = O.wrap(b.a + Math.max(-L.turn * dt, Math.min(L.turn * dt, err)));
-        const v = L.v * Math.max(0, Math.cos(rad(err)));
-        b.x += Math.sin(rad(b.a)) * v * dt; b.y += Math.cos(rad(b.a)) * v * dt;
+        let v;
+        if (b.back > 0) { // just bumped: reverse and turn away so robots don't stay stuck together
+          b.back -= dt; b.a = O.wrap(b.a + b.spin * L.turn * 0.7 * dt); v = -L.v * 0.6;
+        } else {
+          const want = Math.atan2(tx - b.x, ty - b.y) * 180 / Math.PI, err = O.wrap(want - b.a);
+          b.a = O.wrap(b.a + Math.max(-L.turn * dt, Math.min(L.turn * dt, err)));
+          v = L.v * Math.max(0, Math.cos(rad(err)));
+        }
+        b.x += (Math.sin(rad(b.a)) * v + b.kx) * dt; b.y += (Math.cos(rad(b.a)) * v + b.ky) * dt;
+        const dk = Math.exp(-7 * dt); b.kx *= dk; b.ky *= dk;
         b.x = Math.max(90, Math.min(S.W - 90, b.x)); b.y = Math.max(90, Math.min(S.L - 90, b.y));
       }
       // robot-robot collisions: bumps also twist our robot (that is what heading hold fights)
@@ -368,11 +395,16 @@ def joystick_to_degree(x, y):
       for (let i = 0; i < bodies.length; i++) for (let jx = i + 1; jx < bodies.length; jx++) {
         const A = bodies[i], B = bodies[jx], dx = B.o.x - A.o.x, dy = B.o.y - A.o.y, d = Math.hypot(dx, dy), min = A.r + B.r;
         if (d < min && d > 0) {
-          const push = (min - d) / 2, nx = dx / d, ny = dy / d;
+          const push = (min - d) / 2 + 2, nx = dx / d, ny = dy / d;
           A.o.x -= nx * push; A.o.y -= ny * push; B.o.x += nx * push; B.o.y += ny * push;
+          // bounce apart (knockback decays quickly)
+          A.o.kx = -nx * 320; A.o.ky = -ny * 320; B.o.kx = nx * 320; B.o.ky = ny * 320;
+          for (const X of [A, B]) if (!X.me && X.o.back <= 0) { X.o.back = 0.35 + R() * 0.35; X.o.spin = R() < 0.5 ? -1 : 1; }
           if (A.me) { me.w += (R() - 0.5) * 300; if (held && R() < 0.02) { held = false; ball.vx = -nx * 300; ball.vy = -ny * 300; } }
         }
       }
+      me.x = Math.max(RB, Math.min(S.W - RB, me.x)); me.y = Math.max(RB, Math.min(S.L - RB, me.y));
+      for (const b of bots) { b.x = Math.max(90, Math.min(S.W - 90, b.x)); b.y = Math.max(90, Math.min(S.L - 90, b.y)); }
       // dribbler / ball
       const fwd = { x: Math.sin(rad(me.h)), y: Math.cos(rad(me.h)) }, right = { x: Math.cos(rad(me.h)), y: -Math.sin(rad(me.h)) };
       if (held) {
@@ -399,10 +431,19 @@ def joystick_to_degree(x, y):
         const sp = Math.hypot(ball.vx, ball.vy), dec = Math.max(0, sp - 350 * dt);
         if (sp > 0) { ball.vx *= dec / sp; ball.vy *= dec / sp; }
         const inGoalX = Math.abs(ball.x - S.W / 2) < S.goal / 2 - BR;
-        if (ball.y > S.L - BR && inGoalX) { score[0]++; toast('GOAL! ⚽'); return resetMatch(true); }
-        if (ball.y < BR && inGoalX) { score[1]++; toast('Opponents scored'); return resetMatch(true); }
+        if (ball.y > S.L - BR && inGoalX) { score[0]++; toast('GOAL! ⚽'); return kickoff(); }
+        if (ball.y < BR && inGoalX) { score[1]++; toast('Opponents scored'); return kickoff(); }
         if (ball.x < BR) { ball.x = BR; ball.vx = Math.abs(ball.vx) * 0.6; } if (ball.x > S.W - BR) { ball.x = S.W - BR; ball.vx = -Math.abs(ball.vx) * 0.6; }
         if (ball.y < BR) { ball.y = BR; ball.vy = Math.abs(ball.vy) * 0.6; } if (ball.y > S.L - BR) { ball.y = S.L - BR; ball.vy = -Math.abs(ball.vy) * 0.6; }
+      }
+      // ball not moving for 5 s (stuck or pinned) -> back to the centre; score stays
+      if (held) { still = 0; anchor = { x: ball.x, y: ball.y }; }
+      else if (Math.hypot(ball.x - anchor.x, ball.y - anchor.y) > 40) { still = 0; anchor = { x: ball.x, y: ball.y }; }
+      else if ((still += dt) > 5 && Math.hypot(ball.x - S.W / 2, ball.y - S.L / 2) < 100) { still = 0; }
+      else if (still > 5) {
+        ball.x = S.W / 2; ball.y = S.L / 2; ball.vx = ball.vy = 0; still = 0; anchor = { x: ball.x, y: ball.y };
+        for (const b of [me, ...bots]) { const dx = b.x - ball.x, dy = b.y - ball.y, d = Math.hypot(dx, dy); if (d < 220) { const k = d ? 220 / d : 1; b.x = ball.x + (d ? dx : 1) * k; b.y = ball.y + (d ? dy : 0) * k; } }
+        toast('Ball stuck: moved to the centre');
       }
       me.target = target; me.duties = duties;
       bias += R.gauss() * 0.0002;
@@ -420,13 +461,20 @@ def joystick_to_degree(x, y):
       }
       drawBot(x, me.x * s, Y(me.y), me.h, RB * s, COL[S.ctrl], me.target, dpr, o.config, me.duties, { retW: S.retW * s, retD: S.retD * s, held });
       x.fillStyle = '#f97316'; x.strokeStyle = '#fff'; x.lineWidth = 1.5 * dpr; x.beginPath(); x.arc(ball.x * s, Y(ball.y), BR * s, 0, 7); x.fill(); x.stroke();
+      if (phase !== 'play') {
+        const msg = { ready: 'Press ▶ Start', pause: 'Paused', half: `Half time  ${score[0]} : ${score[1]}`, full: `Full time  ${score[0]} : ${score[1]}` }[phase];
+        const sub = { ready: '2 halves × 2:30', pause: '', half: 'Press ▶ Start 2nd half', full: score[0] > score[1] ? 'You win! 🏆' : score[0] < score[1] ? 'Opponents win' : 'Draw' }[phase];
+        x.fillStyle = 'rgba(0,0,0,.55)'; x.fillRect(0, c.height / 2 - 50 * dpr, c.width, 100 * dpr);
+        x.fillStyle = '#fff'; x.textAlign = 'center'; x.font = `700 ${24 * dpr}px system-ui`; x.fillText(msg, c.width / 2, c.height / 2 + (sub ? 0 : 8) * dpr);
+        if (sub) { x.font = `${14 * dpr}px system-ui`; x.fillText(sub, c.width / 2, c.height / 2 + 26 * dpr); }
+      }
     }
     const loop = now => {
       let dt = Math.min(0.05, (now - last) / 1000); last = now; acc += dt;
       while (acc > 0.01) { physics(0.01); acc -= 0.01; }
       drawPitch(); drawStick();
       $('#score').textContent = `${score[0]} : ${score[1]}`;
-      $('#clock').textContent = `${Math.floor(tGame / 60)}:${String(Math.floor(tGame % 60)).padStart(2, '0')}`;
+      const tl = Math.ceil(tLeft); $('#clock').textContent = `${half === 1 ? '1st' : '2nd'} half ${Math.floor(tl / 60)}:${String(tl % 60).padStart(2, '0')}`;
       const e = O.wrap(me.h - (me.target || 0));
       $('#tele').innerHTML = [['Controller', S.ctrl], ['Heading', me.h.toFixed(1) + '°'], ['Target', (me.target || 0).toFixed(1) + '°' + (held && S.autoLock ? ' (goal)' : '')],
         ['Error', `<span style="color:${Math.abs(e) < 2 ? 'var(--good)' : Math.abs(e) < 6 ? 'var(--accent)' : 'var(--bad)'}">${e.toFixed(1)}°</span>`], ['Ball', held ? 'in dribbler' : 'free'], ['Stick', st.src]]
