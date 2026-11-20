@@ -22,6 +22,7 @@ export async function copy(text) {
 const pages = {
   '': () => import('./pages/home.js'),
   sim: () => import('./pages/sim.js'),
+  soccer: () => import('./pages/soccer.js'),
   builder: () => import('./pages/builder.js'),
   field: () => import('./pages/field.js'),
   code: () => import('./pages/code.js'),

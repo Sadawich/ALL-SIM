@@ -3,6 +3,10 @@
 A turn, route and rules lab for robot competitions: FLL first, plus any other competition you add. It's built for SPIKE Prime and Pybricks, runs on GitHub Pages and needs no build step.
 
 - **Turn lab:** runs LQR, PID and the Pybricks gyro through the same 6-turn test (90°, −90°, 180°, 45°, −135°, 90°) on a model of your robot. The model includes friction, motor delay, gyro noise and battery sag. Auto-tune picks gains for your robot, and you can export each controller as real Pybricks code.
+- **Soccer tab** (3-wheel kiwi, 4-wheel omni X or +):
+  - *Heading lab* compares LQR and PID while the robot drives in random directions and gets bumped. It measures how well each one keeps the robot facing forward, or locked on the goal. Auto-tune and Pybricks export are included.
+  - *Joystick → degree* shows the stick angle, the speed after the deadzone, field-relative vs robot-relative angle and the power to each wheel. It works with touch, keys or a gamepad.
+  - *Soccer sim* is a match with a ball, a retriever/dribbler, a kicker, auto goal lock when holding the ball, and 2 two-wheel opponent bots (easy/medium/hard).
 - **Calibration:** a short script measures your real robot on the hub. You paste the `CAL …` line it prints into the site.
 - **Robot builder (3D):** you place SPIKE parts and see mass, centre of mass, yaw inertia, weight on the drive wheels and tipping warnings. You also set drive ports and motor directions here.
 - **Field 1:1:** the 2362 × 1143 mm mat with mission markers. You draw a route, it generates Pybricks DriveBase code, and you can simulate the run with realistic turn error.
