@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>FLL SIM — robot competition simulator</title>
+<meta name="description" content="Test LQR, PID and Pybricks gyro turns, build your robot, plan BIOGLOW runs and run Pybricks Python in the browser.">
+<meta name="theme-color" content="#0d1117">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%23ffb020'/><text x='16' y='21' font-size='13' text-anchor='middle' font-family='monospace' font-weight='700' fill='%23111'>FS</text></svg>">
+<link rel="stylesheet" href="css/style.css">
+<script type="importmap">{ "imports": { "three": "./vendor/three.module.min.js" } }</script>
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="#/"><span class="logo">FS</span><span id="brandName">FLL SIM</span></a>
+  <nav class="tabs" id="tabs">
+    <a href="#/" data-r="">Home</a>
+    <a href="#/sim" data-r="sim">Turn lab</a>
+    <a href="#/builder" data-r="builder">Robot</a>
+    <a href="#/field" data-r="field">Field</a>
+    <a href="#/code" data-r="code">Code</a>
+    <a href="#/rules" data-r="rules">Rules</a>
+    <a href="#/account" data-r="account">Team</a>
+    <a href="#/admin" data-r="admin">Admin</a>
+  </nav>
+  <select id="compSel" class="in comp-sel" title="Competition"></select>
+  <div class="who" id="who"></div>
+</header>
+<main id="view"></main>
+<footer><span id="footName">FLL SIM</span> · built for SPIKE Prime + Pybricks · not affiliated with FIRST® or LEGO®</footer>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
